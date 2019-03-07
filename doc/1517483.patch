@@ -1,0 +1,416 @@
+diff --git a/browser/base/content/browser.js b/browser/base/content/browser.js
+--- a/browser/base/content/browser.js
++++ b/browser/base/content/browser.js
+@@ -7325,8 +7325,8 @@
+   }
+   // ... so for those that don't have them, enforce that the page has the
+   // system principal (this matches e.g. on about:newtab).
+-  let ssm = Services.scriptSecurityManager;
+-  return ssm.isSystemPrincipal(contentPrincipal);
++
++  return contentPrincipal.isSystemPrincipal;
+ }
+ 
+ function ReportFalseDeceptiveSite() {
+diff --git a/browser/base/content/tabbrowser.js b/browser/base/content/tabbrowser.js
+--- a/browser/base/content/tabbrowser.js
++++ b/browser/base/content/tabbrowser.js
+@@ -2262,7 +2262,7 @@
+         userContextId: params.userContextId,
+       });
+     }
+-    if (Services.scriptSecurityManager.isSystemPrincipal(params.triggeringPrincipal)) {
++    if (params.triggeringPrincipal.isSystemPrincipal) {
+       throw new Error("System principal should never be passed into addWebTab()");
+     }
+     return this.addTab(aURI, params);
+@@ -4620,7 +4620,7 @@
+ 
+         // For non-system/expanded principals, we bail and show the checkbox
+         if (promptPrincipal.URI &&
+-            !Services.scriptSecurityManager.isSystemPrincipal(promptPrincipal)) {
++            !promptPrincipal.isSystemPrincipal) {
+           let permission = Services.perms.testPermissionFromPrincipal(promptPrincipal,
+             "focus-tab-by-prompt");
+           if (permission != Services.perms.ALLOW_ACTION) {
+diff --git a/browser/base/content/test/contextMenu/browser_utilityOverlayPrincipal.js b/browser/base/content/test/contextMenu/browser_utilityOverlayPrincipal.js
+--- a/browser/base/content/test/contextMenu/browser_utilityOverlayPrincipal.js
++++ b/browser/base/content/test/contextMenu/browser_utilityOverlayPrincipal.js
+@@ -32,7 +32,7 @@
+       const loadingPrincipal = channel.loadInfo.loadingPrincipal;
+       is(loadingPrincipal, null, "sanity: correct loadingPrincipal");
+       const triggeringPrincipal = channel.loadInfo.triggeringPrincipal;
+-      ok(Services.scriptSecurityManager.isSystemPrincipal(triggeringPrincipal),
++      ok(triggeringPrincipal.isSystemPrincipal,
+         "sanity: correct triggeringPrincipal");
+       const principalToInherit = channel.loadInfo.principalToInherit;
+       ok(principalToInherit.isNullPrincipal, "sanity: correct principalToInherit");
+diff --git a/browser/base/content/test/general/browser_e10s_about_page_triggeringprincipal.js b/browser/base/content/test/general/browser_e10s_about_page_triggeringprincipal.js
+--- a/browser/base/content/test/general/browser_e10s_about_page_triggeringprincipal.js
++++ b/browser/base/content/test/general/browser_e10s_about_page_triggeringprincipal.js
+@@ -30,7 +30,7 @@
+          "sanity check - make sure we test the principal for the correct URI");
+ 
+       let triggeringPrincipal = channel.loadInfo.triggeringPrincipal;
+-      ok(Services.scriptSecurityManager.isSystemPrincipal(triggeringPrincipal),
++      ok(triggeringPrincipal.isSystemPrincipal,
+          "loading about: from privileged page must have a triggering of System");
+ 
+       let contentPolicyType = channel.loadInfo.externalContentPolicyType;
+@@ -66,7 +66,7 @@
+          "sanity check - make sure we test the principal for the correct URI");
+ 
+       let triggeringPrincipal = channel.loadInfo.triggeringPrincipal;
+-      ok(Services.scriptSecurityManager.isSystemPrincipal(triggeringPrincipal),
++      ok(triggeringPrincipal.isSystemPrincipal,
+          "loading about: from privileged page must have a triggering of System");
+ 
+       let contentPolicyType = channel.loadInfo.externalContentPolicyType;
+@@ -111,7 +111,7 @@
+          "sanity check - make sure we test the principal for the correct URI");
+ 
+       let triggeringPrincipal = channel.loadInfo.triggeringPrincipal;
+-      ok(Services.scriptSecurityManager.isSystemPrincipal(triggeringPrincipal),
++      ok(triggeringPrincipal.isSystemPrincipal,
+          "loading about: from privileged page must have a triggering of System");
+ 
+       let contentPolicyType = channel.loadInfo.externalContentPolicyType;
+diff --git a/browser/base/content/utilityOverlay.js b/browser/base/content/utilityOverlay.js
+--- a/browser/base/content/utilityOverlay.js
++++ b/browser/base/content/utilityOverlay.js
+@@ -203,7 +203,7 @@
+   if (!params.triggeringPrincipal) {
+     params.triggeringPrincipal = Services.scriptSecurityManager.createNullPrincipal({});
+   }
+-  if (Services.scriptSecurityManager.isSystemPrincipal(params.triggeringPrincipal)) {
++  if (params.triggeringPrincipal.isSystemPrincipal) {
+     throw new Error("System principal should never be passed into openWebLinkIn()");
+   }
+ 
+diff --git a/caps/tests/mochitest/test_disableScript.xul b/caps/tests/mochitest/test_disableScript.xul
+--- a/caps/tests/mochitest/test_disableScript.xul
++++ b/caps/tests/mochitest/test_disableScript.xul
+@@ -143,7 +143,7 @@
+     checkScriptEnabled(rootWin, true);
+ 
+     // Privileged frames are immune to docshell flags.
+-    ok(ssm.isSystemPrincipal(chromeWin.document.nodePrincipal), "Sanity check for System Principal");
++    ok(chromeWin.document.nodePrincipal.isSystemPrincipal, "Sanity check for System Principal");
+     setScriptEnabledForDocShell(chromeWin, false);
+     checkScriptEnabled(chromeWin, true);
+     setScriptEnabledForDocShell(chromeWin, true);
+diff --git a/devtools/client/jsonview/test/browser_json_refresh.js b/devtools/client/jsonview/test/browser_json_refresh.js
+--- a/devtools/client/jsonview/test/browser_json_refresh.js
++++ b/devtools/client/jsonview/test/browser_json_refresh.js
+@@ -29,7 +29,7 @@
+     const loadingPrincipal = channel.loadInfo.loadingPrincipal;
+     is(loadingPrincipal, null, "sanity: correct loadingPrincipal");
+     const triggeringPrincipal = channel.loadInfo.triggeringPrincipal;
+-    ok(Services.scriptSecurityManager.isSystemPrincipal(triggeringPrincipal),
++    ok(triggeringPrincipal.isSystemPrincipal,
+        "sanity: correct triggeringPrincipal");
+     const principalToInherit = channel.loadInfo.principalToInherit;
+     ok(principalToInherit.isNullPrincipal, "sanity: correct principalToInherit");
+@@ -55,7 +55,7 @@
+     const loadingPrincipal = channel.loadInfo.loadingPrincipal;
+     is(loadingPrincipal, null, "reloaded: correct loadingPrincipal");
+     const triggeringPrincipal = channel.loadInfo.triggeringPrincipal;
+-    ok(Services.scriptSecurityManager.isSystemPrincipal(triggeringPrincipal),
++    ok(triggeringPrincipal.isSystemPrincipal,
+        "reloaded: correct triggeringPrincipal");
+     const principalToInherit = channel.loadInfo.principalToInherit;
+     ok(principalToInherit.isNullPrincipal, "reloaded: correct principalToInherit");
+diff --git a/devtools/server/actors/stylesheets.js b/devtools/server/actors/stylesheets.js
+--- a/devtools/server/actors/stylesheets.js
++++ b/devtools/server/actors/stylesheets.js
+@@ -731,7 +731,7 @@
+       doc.styleSheetChangeEventsEnabled = true;
+ 
+       const isChrome =
+-        Services.scriptSecurityManager.isSystemPrincipal(doc.nodePrincipal);
++        doc.nodePrincipal.isSystemPrincipal;
+       const documentOnly = !isChrome;
+       const styleSheets = InspectorUtils.getAllStyleSheets(doc, documentOnly);
+       let actors = [];
+diff --git a/devtools/shared/DevToolsUtils.js b/devtools/shared/DevToolsUtils.js
+--- a/devtools/shared/DevToolsUtils.js
++++ b/devtools/shared/DevToolsUtils.js
+@@ -376,7 +376,7 @@
+ 
+   // If there aren't Xrays, only allow chrome objects.
+   const principal = Cu.getObjectPrincipal(obj);
+-  if (!Services.scriptSecurityManager.isSystemPrincipal(principal)) {
++  if (!principal.isSystemPrincipal) {
+     return false;
+   }
+ 
+diff --git a/docshell/test/browser/browser_bug349769.js b/docshell/test/browser/browser_bug349769.js
+--- a/docshell/test/browser/browser_bug349769.js
++++ b/docshell/test/browser/browser_bug349769.js
+@@ -8,9 +8,7 @@
+       Assert.notEqual(prin, null, "Loaded principal must not be null when adding " + uri);
+       Assert.notEqual(prin, undefined, "Loaded principal must not be undefined when loading " + uri);
+ 
+-      const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"]
+-                       .getService(Ci.nsIScriptSecurityManager);
+-      Assert.equal(secMan.isSystemPrincipal(prin), false,
++      Assert.equal(prin.isSystemPrincipal, false,
+          "Loaded principal must not be system when loading " + uri);
+     });
+   }
+@@ -24,7 +22,7 @@
+       isnot(prin, null, "Forced principal must not be null when loading " + uri);
+       isnot(prin, undefined,
+             "Forced principal must not be undefined when loading " + uri);
+-      is(secMan.isSystemPrincipal(prin), false,
++      is(prin.isSystemPrincipal, false,
+          "Forced principal must not be system when loading " + uri);
+ 
+       // Belt-and-suspenders e10s check: make sure that the same checks hold
+@@ -36,7 +34,7 @@
+       prin = newBrowser.contentPrincipal;
+       isnot(prin, null, "Loaded principal must not be null when adding " + uri);
+       isnot(prin, undefined, "Loaded principal must not be undefined when loading " + uri);
+-      is(secMan.isSystemPrincipal(prin), false,
++      is(prin.isSystemPrincipal, false,
+          "Loaded principal must not be system when loading " + uri);
+ 
+       // Belt-and-suspenders e10s check: make sure that the same checks hold
+diff --git a/docshell/test/browser/browser_bug388121-1.js b/docshell/test/browser/browser_bug388121-1.js
+--- a/docshell/test/browser/browser_bug388121-1.js
++++ b/docshell/test/browser/browser_bug388121-1.js
+@@ -5,9 +5,7 @@
+       Assert.notEqual(prin, null, "Loaded principal must not be null");
+       Assert.notEqual(prin, undefined, "Loaded principal must not be undefined");
+ 
+-      const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"]
+-                       .getService(Ci.nsIScriptSecurityManager);
+-      Assert.equal(secMan.isSystemPrincipal(prin), false,
++      Assert.equal(prin.isSystemPrincipal, false,
+         "Loaded principal must not be system");
+     });
+   });
+diff --git a/docshell/test/browser/browser_bug388121-2.js b/docshell/test/browser/browser_bug388121-2.js
+--- a/docshell/test/browser/browser_bug388121-2.js
++++ b/docshell/test/browser/browser_bug388121-2.js
+@@ -2,7 +2,6 @@
+   waitForExplicitFinish(); 
+ 
+   var w;
+-  const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+   var iteration = 1;
+   const uris = ["", "about:blank"];
+   var uri;
+@@ -17,7 +16,7 @@
+     var prin = w.document.nodePrincipal;
+     isnot(prin, null, "Loaded principal must not be null when adding " + uri);
+     isnot(prin, undefined, "Loaded principal must not be undefined when loading " + uri);
+-    is(secMan.isSystemPrincipal(prin), false,
++    is(prin.isSystemPrincipal, false,
+        "Loaded principal must not be system when loading " + uri);
+     w.close();
+ 
+@@ -39,7 +38,7 @@
+     isnot(prin, null, "Forced principal must not be null when loading " + uri);
+     isnot(prin, undefined,
+           "Forced principal must not be undefined when loading " + uri);
+-    is(secMan.isSystemPrincipal(prin), false,
++    is(prin.isSystemPrincipal, false,
+        "Forced principal must not be system when loading " + uri);
+     if (uri == undefined) {
+       // No actual load here, so just move along.
+diff --git a/dom/cache/PrincipalVerifier.cpp b/dom/cache/PrincipalVerifier.cpp
+--- a/dom/cache/PrincipalVerifier.cpp
++++ b/dom/cache/PrincipalVerifier.cpp
+@@ -126,7 +126,7 @@
+ 
+   // Verify if a child process uses system principal, which is not allowed
+   // to prevent system principal is spoofed.
+-  if (NS_WARN_IF(actor && ssm->IsSystemPrincipal(principal))) {
++  if (NS_WARN_IF(actor && principal->IsSystemPrincipal())) {
+     DispatchToInitiatingThread(NS_ERROR_FAILURE);
+     return;
+   }
+@@ -137,7 +137,7 @@
+   // Sanity check principal origin by using it to construct a URI and security
+   // checking it.  Don't do this for the system principal, though, as its origin
+   // is a synthetic [System Principal] string.
+-  if (!ssm->IsSystemPrincipal(principal)) {
++  if (!principal->IsSystemPrincipal()) {
+     nsAutoCString origin;
+     rv = principal->GetOriginNoSuffix(origin);
+     if (NS_WARN_IF(NS_FAILED(rv))) {
+diff --git a/dom/media/PeerConnection.js b/dom/media/PeerConnection.js
+--- a/dom/media/PeerConnection.js
++++ b/dom/media/PeerConnection.js
+@@ -413,7 +413,7 @@
+         "RTCPeerConnection constructor passed invalid RTCConfiguration");
+     }
+     var principal = Cu.getWebIDLCallerPrincipal();
+-    this._isChrome = Services.scriptSecurityManager.isSystemPrincipal(principal);
++    this._isChrome = principal.isSystemPrincipal;
+ 
+     if (_globalPCList._networkdown) {
+       throw new this._win.DOMException(
+diff --git a/dom/security/FramingChecker.cpp b/dom/security/FramingChecker.cpp
+--- a/dom/security/FramingChecker.cpp
++++ b/dom/security/FramingChecker.cpp
+@@ -92,12 +92,9 @@
+       break;
+     }
+ 
+-    bool system = false;
+     topDoc = parentDocShellItem->GetDocument();
+     if (topDoc) {
+-      if (NS_SUCCEEDED(
+-              ssm->IsSystemPrincipal(topDoc->NodePrincipal(), &system)) &&
+-          system) {
++      if (topDoc->NodePrincipal()->IsSystemPrincipal()) {
+         // Found a system-principled doc: last docshell was top.
+         break;
+       }
+diff --git a/ipc/glue/BackgroundUtils.cpp b/ipc/glue/BackgroundUtils.cpp
+--- a/ipc/glue/BackgroundUtils.cpp
++++ b/ipc/glue/BackgroundUtils.cpp
+@@ -191,9 +191,10 @@
+   MOZ_ASSERT(aPrincipal);
+   MOZ_ASSERT(aPrincipalInfo);
+ 
++  nsresult rv;
+   if (aPrincipal->GetIsNullPrincipal()) {
+     nsCOMPtr<nsIURI> uri;
+-    nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
++    rv = aPrincipal->GetURI(getter_AddRefs(uri));
+     if (NS_WARN_IF(NS_FAILED(rv))) {
+       return rv;
+     }
+@@ -213,19 +214,7 @@
+     return NS_OK;
+   }
+ 
+-  nsCOMPtr<nsIScriptSecurityManager> secMan =
+-      nsContentUtils::GetSecurityManager();
+-  if (!secMan) {
+-    return NS_ERROR_FAILURE;
+-  }
+-
+-  bool isSystemPrincipal;
+-  nsresult rv = secMan->IsSystemPrincipal(aPrincipal, &isSystemPrincipal);
+-  if (NS_WARN_IF(NS_FAILED(rv))) {
+-    return rv;
+-  }
+-
+-  if (isSystemPrincipal) {
++  if (aPrincipal->IsSystemPrincipal()) {
+     *aPrincipalInfo = SystemPrincipalInfo();
+     return NS_OK;
+   }
+diff --git a/js/xpconnect/src/XPCJSRuntime.cpp b/js/xpconnect/src/XPCJSRuntime.cpp
+--- a/js/xpconnect/src/XPCJSRuntime.cpp
++++ b/js/xpconnect/src/XPCJSRuntime.cpp
+@@ -375,7 +375,7 @@
+ 
+ static bool PrincipalImmuneToScriptPolicy(nsIPrincipal* aPrincipal) {
+   // System principal gets a free pass.
+-  if (nsXPConnect::SecurityManager()->IsSystemPrincipal(aPrincipal)) {
++  if (aPrincipal->IsSystemPrincipal()) {
+     return true;
+   }
+ 
+diff --git a/js/xpconnect/tests/unit/test_getObjectPrincipal.js b/js/xpconnect/tests/unit/test_getObjectPrincipal.js
+--- a/js/xpconnect/tests/unit/test_getObjectPrincipal.js
++++ b/js/xpconnect/tests/unit/test_getObjectPrincipal.js
+@@ -1,6 +1,5 @@
+ function run_test() {
+-  var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+-  Assert.ok(secMan.isSystemPrincipal(Cu.getObjectPrincipal({})));
++  Assert.ok(Cu.getObjectPrincipal({}).isSystemPrincipal);
+   var sb = new Cu.Sandbox('http://www.example.com');
+   Cu.evalInSandbox('var obj = { foo: 42 };', sb);
+   Assert.equal(Cu.getObjectPrincipal(sb.obj).origin, 'http://www.example.com');
+diff --git a/toolkit/components/backgroundhangmonitor/ThreadStackHelper.cpp b/toolkit/components/backgroundhangmonitor/ThreadStackHelper.cpp
+--- a/toolkit/components/backgroundhangmonitor/ThreadStackHelper.cpp
++++ b/toolkit/components/backgroundhangmonitor/ThreadStackHelper.cpp
+@@ -210,12 +210,9 @@
+ bool IsChromeJSScript(JSScript* aScript) {
+   // May be called from another thread or inside a signal handler.
+   // We assume querying the script is safe but we must not manipulate it.
+-  nsIScriptSecurityManager* const secman =
+-      nsScriptSecurityManager::GetScriptSecurityManager();
+-  NS_ENSURE_TRUE(secman, false);
+ 
+   JSPrincipals* const principals = JS_GetScriptPrincipals(aScript);
+-  return secman->IsSystemPrincipal(nsJSPrincipals::get(principals));
++  return nsJSPrincipals::get(principals)->IsSystemPrincipal();
+ }
+ 
+ // Get the full path after the URI scheme, if the URI matches the scheme.
+diff --git a/toolkit/components/extensions/ExtensionContent.jsm b/toolkit/components/extensions/ExtensionContent.jsm
+--- a/toolkit/components/extensions/ExtensionContent.jsm
++++ b/toolkit/components/extensions/ExtensionContent.jsm
+@@ -622,7 +622,7 @@
+     const ssm = Services.scriptSecurityManager;
+ 
+     let principal;
+-    if (ssm.isSystemPrincipal(contentPrincipal)) {
++    if (contentPrincipal.isSystemPrincipal) {
+       principal = ssm.createNullPrincipal(contentPrincipal.originAttributes);
+     } else {
+       principal = [contentPrincipal];
+@@ -697,7 +697,7 @@
+       });
+     } else {
+       let principal;
+-      if (ssm.isSystemPrincipal(contentPrincipal)) {
++      if (contentPrincipal.isSystemPrincipal) {
+         // Make sure we don't hand out the system principal by accident.
+         // Also make sure that the null principal has the right origin attributes.
+         principal = ssm.createNullPrincipal(attrs);
+diff --git a/toolkit/content/preferencesBindings.js b/toolkit/content/preferencesBindings.js
+--- a/toolkit/content/preferencesBindings.js
++++ b/toolkit/content/preferencesBindings.js
+@@ -312,7 +312,7 @@
+ 
+       if (Preferences.type == "child" && window.opener &&
+           window.opener.Preferences &&
+-          Services.scriptSecurityManager.isSystemPrincipal(window.opener.document.nodePrincipal)) {
++          window.opener.document.nodePrincipal.isSystemPrincipal {
+         // Try to find the preference in the parent window.
+         const preference = window.opener.Preferences.get(this.name);
+ 
+diff --git a/toolkit/modules/addons/WebRequestContent.js b/toolkit/modules/addons/WebRequestContent.js
+--- a/toolkit/modules/addons/WebRequestContent.js
++++ b/toolkit/modules/addons/WebRequestContent.js
+@@ -92,7 +92,7 @@
+     }
+ 
+     if (requestPrincipal &&
+-        Services.scriptSecurityManager.isSystemPrincipal(requestPrincipal)) {
++        requestPrincipal.isSystemPrincipal) {
+       return Ci.nsIContentPolicy.ACCEPT;
+     }
+     let url = contentLocation.spec;
+diff --git a/toolkit/mozapps/extensions/amContentHandler.js b/toolkit/mozapps/extensions/amContentHandler.js
+--- a/toolkit/mozapps/extensions/amContentHandler.js
++++ b/toolkit/mozapps/extensions/amContentHandler.js
+@@ -71,7 +71,7 @@
+       // privileged document
+       let element = window.frameElement;
+       let ssm = Services.scriptSecurityManager;
+-      while (element && !ssm.isSystemPrincipal(element.ownerDocument.nodePrincipal))
++      while (element && !element.ownerDocument.nodePrincipal.isSystemPrincipal)
+         element = element.ownerGlobal.frameElement;
+ 
+       if (element) {
+diff --git a/toolkit/mozapps/extensions/amInstallTrigger.js b/toolkit/mozapps/extensions/amInstallTrigger.js
+--- a/toolkit/mozapps/extensions/amInstallTrigger.js
++++ b/toolkit/mozapps/extensions/amInstallTrigger.js
+@@ -75,7 +75,7 @@
+       // privileged document
+       let element = window.frameElement;
+       let ssm = Services.scriptSecurityManager;
+-      while (element && !ssm.isSystemPrincipal(element.ownerDocument.nodePrincipal))
++      while (element && !element.ownerDocument.nodePrincipal.isSystemPrincipal)
+         element = element.ownerGlobal.frameElement;
+ 
+       if (element) {
